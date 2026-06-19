@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 import base64
 from deepface import DeepFace
-
+import gc
 app = FastAPI()
 
 # --- NẠP MODEL MỘT LẦN DUY NHẤT KHI KHỞI ĐỘNG ---
@@ -38,7 +38,9 @@ async def get_embedding(request: Request):
         )
         
         embedding = res[0]["embedding"]
+        gc.collect()
         return {"embedding": embedding}
         
     except Exception as e:
+        gc.collect()
         return {"error": str(e)}
