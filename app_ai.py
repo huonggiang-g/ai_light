@@ -11,7 +11,7 @@ print("Đang khởi tạo model Facenet512, vui lòng đợi...")
 # Gọi hàm để build model trước, điều này sẽ lưu vào RAM/Cache
 # Chúng ta chỉ thực hiện bước này 1 lần duy nhất lúc server chạy
 try:
-    model = DeepFace.build_model("Facenet512")
+    model = DeepFace.build_model("VGG-Face")
     print("Model đã sẵn sàng!")
 except Exception as e:
     print(f"Lỗi khởi tạo model: {e}")
@@ -32,7 +32,7 @@ async def get_embedding(request: Request):
         # Lưu ý: Vì model đã được build, DeepFace sẽ sử dụng nó cực nhanh
         res = DeepFace.represent(
             img_path=face_img, 
-            model_name="Facenet512", 
+            model_name="VGG-Face", 
             detector_backend="skip", 
             enforce_detection=False
         )
