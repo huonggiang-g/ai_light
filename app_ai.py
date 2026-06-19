@@ -5,7 +5,9 @@ import base64
 from deepface import DeepFace
 
 app = FastAPI()
-
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
 @app.post("/embed")
 async def get_embedding(request: Request):
     try:
