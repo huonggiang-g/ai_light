@@ -1,20 +1,32 @@
-from fastapi import FastAPI, Request
+import os
+import gc
+import base64
 import numpy as np
 import cv2
-import base64
+from fastapi import FastAPI, Request
 from deepface import DeepFace
-import gc
+import tensorflow as tf
+
+# Tối ưu TensorFlow để không chiếm dụng quá nhiều RAM ngay lúc khởi động
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+try:
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+except:
+    pass
+
 app = FastAPI()
 
-# --- NẠP MODEL MỘT LẦN DUY NHẤT KHI KHỞI ĐỘNG ---
-print("Đang khởi tạo model Facenet512, vui lòng đợi...")
-# Gọi hàm để build model trước, điều này sẽ lưu vào RAM/Cache
-# Chúng ta chỉ thực hiện bước này 1 lần duy nhất lúc server chạy
+# NẠP MODEL VGG-FACE (NHẸ HƠN FACENET512 RẤT NHIỀU)
+print("Đang nạp model VGG-Face nhẹ hơn...")
 try:
+    # Nạp sẵn model vào RAM
     model = DeepFace.build_model("VGG-Face")
-    print("Model đã sẵn sàng!")
+    print("Model VGG-Face đã sẵn sàng!")
 except Exception as e:
-    print(f"Lỗi khởi tạo model: {e}")
+    print(f"Lỗi nạp model: {e}")
 
 @app.get("/health")
 async def health_check():
@@ -28,8 +40,8 @@ async def get_embedding(request: Request):
         nparr = np.frombuffer(img_data, np.uint8)
         face_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
-        # SỬ DỤNG LẠI MODEL ĐÃ NẠP SẴN
-        # Lưu ý: Vì model đã được build, DeepFace sẽ sử dụng nó cực nhanh
+        # Trích xuất vector với VGG-Face
+        # detector_backend="skip" vì smart-safe đã xử lý crop ảnh rồi
         res = DeepFace.represent(
             img_path=face_img, 
             model_name="VGG-Face", 
@@ -38,9 +50,11 @@ async def get_embedding(request: Request):
         )
         
         embedding = res[0]["embedding"]
-        gc.collect()
-        return {"embedding": embedding}
         
+        # Giải phóng bộ nhớ thủ công sau mỗi request
+        gc.collect()
+        
+        return {"embedding": embedding}
     except Exception as e:
         gc.collect()
         return {"error": str(e)}
