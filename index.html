@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SAFE VMU — Camera Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="client_auth.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🔐</div>
+    <div>
+      <div>SAFE VMU</div>
+      <div class="logo-sub">SURVEILLANCE SYSTEM</div>
+    </div>
+  </div>
+  <div class="header-center">
+    CAM MONITOR · SAFE_VMU_01<br>
+    <span>■ ■ ■</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div id="mqttBadge" class="conn-badge offline">
+      <span class="dot"></span>
+      <span id="mqttLabel">MQTT OFFLINE</span>
+    </div>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<nav>
+  <div class="nav-links">
+    <a href="index.html" class="active">🏠 Trang chủ</a>
+    <a href="history.html">📋 Lịch sử</a>
+    <a href="profile.html">👤 Tài khoản</a>
+  </div>
+  <div class="nav-user">
+    <span id="userNameDisplay" style="font-weight:600;">User</span>
+    <button class="btn btn-danger" style="padding:6px 14px;font-size:0.78rem;" onclick="doLogout()">Đăng xuất</button>
+  </div>
+</nav>
+
+<main>
+  <div class="cam-section">
+
+    <div class="cam-card">
+      <div class="cam-card-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="cam-label">CAM-01 · SAFE_VMU_01 · VGA</span>
+        </div>
+        <div id="recBadge" class="rec-badge">
+          <span class="rec-dot"></span> LIVE
+        </div>
+      </div>
+      <div class="cam-frame" id="camFrame">
+        <div class="placeholder" id="placeholder">
+          <div class="ph-icon">📷</div>
+          <p>AWAITING SIGNAL</p>
+          <p style="margin-top:4px;font-size:0.6rem;">Chờ ảnh từ ESP32-S3...</p>
+        </div>
+        <img id="camImage" alt="Camera Feed">
+        <div class="hud-overlay" id="hudOverlay">
+          <div class="hud-row" id="hudTime">--:--:--</div>
+          <div class="hud-row" id="hudSize">-- KB</div>
+          <div class="hud-row">CAM-01 · VGA</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="face-panel">
+      <div class="face-avatar" id="faceAvatar">👤</div>
+      <div class="face-info">
+        <div class="face-status" id="faceStatus">AWAITING SCAN</div>
+        <div class="face-name" id="faceName">—</div>
+        <div class="face-conf" id="faceConf">Confidence: —</div>
+        <div class="conf-bar">
+          <div class="conf-fill" id="confFill"></div>
+        </div>
+      </div>
+      <button class="unlock-btn" onclick="manualUnlock()">⚡ Mở thủ công</button>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat">
+        <div class="stat-label">Frames nhận</div>
+        <div class="stat-value green" id="frameCount">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Kích thước</div>
+        <div class="stat-value" id="lastSize">— KB</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Frame gần nhất</div>
+        <div class="stat-value" id="lastTime">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">WS Clients</div>
+        <div class="stat-value" id="wsClients">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+
+    <div class="log-card">
+      <div class="log-header">
+        <div class="log-title">Nhật ký sự kiện</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="log-count" id="logCount">0</span>
+          <button class="btn btn-danger" style="background:transparent; padding:4px 10px; font-size:0.72rem;" onclick="clearLogs()">🗑️ Xóa</button>
+        </div>
+      </div>
+      <div id="logContainer">
+        <div style="text-align:center;color:var(--muted);font-size:0.78rem;padding:20px;">
+          Chưa có sự kiện nào...
+        </div>
+      </div>
+    </div>
+
+    <div class="thumb-section">
+      <div class="thumb-label">Ảnh chụp gần đây</div>
+      <div id="thumbStrip">
+        <div style="color:var(--muted);font-size:0.75rem;">Chưa có ảnh nào</div>
+      </div>
+    </div>
+
+    <div class="finger-panel">
+      <div class="finger-panel-header">
+        <div class="finger-panel-title">🫆 Trạng thái vân tay</div>
+        <span class="log-count" id="fingerCount">0</span>
+      </div>
+      <div class="finger-body">
+        <div class="finger-status-box" id="fingerStatusBox">
+          <div class="finger-icon" id="fingerIcon">🫆</div>
+          <div class="finger-msg">
+            <div class="finger-msg-title" id="fingerMsgTitle">Đang chờ</div>
+            <div class="finger-msg-sub" id="fingerMsgSub">Hệ thống sẵn sàng xác thực</div>
+          </div>
+        </div>
+
+        <div class="finger-list" id="fingerList" style="margin-top: 10px;">
+          <div style="color:var(--muted);font-size:0.75rem;text-align:center;padding:12px;">
+            Chưa có vân tay nào
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer>
+  <div>SAFE SURVEILLANCE SYSTEM v1.0 · ESP32-S3 → HiveMQ → Node.js → WebSocket</div>
+  <div class="ws-status">
+    <div class="ws-dot" id="wsDot"></div>
+    <span id="wsLabel">WebSocket: Đang kết nối...</span>
+  </div>
+</footer>
+
+<script>
+// ════ CONFIG ════
+const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const WS_URL = `${protocol}//${window.location.host}`;
+const MAX_THUMBS = 8;
+const MAX_LOGS   = 80;
+
+let frameCount = 0, logCount = 0;
+let ws = null, thumbs = [];
+
+// DOM refs
+const camImage      = document.getElementById('camImage');
+const placeholder   = document.getElementById('placeholder');
+const hudTime       = document.getElementById('hudTime');
+const hudSize       = document.getElementById('hudSize');
+const recBadge      = document.getElementById('recBadge');
+const logContainer  = document.getElementById('logContainer');
+const thumbStrip    = document.getElementById('thumbStrip');
+
+// User
+const user = getCurrentUser();
+document.getElementById('userNameDisplay').textContent = user ? user.full_name : 'Khách';
+
+// Clock
+function tick() {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+tick(); setInterval(tick, 1000);
+
+// ════ LOG ════
+function addLog(type, msg) {
+  const now = new Date().toLocaleTimeString('vi-VN');
+  const icons = { face: '🫥', finger: '🫆', info: 'ℹ️', warn: '⚠️', status: '✅', error: '❌', photo: '📸' };
+  const icon  = icons[type] || '•';
+
+  if (logCount === 0) logContainer.innerHTML = '';
+
+  const entry = document.createElement('div');
+  entry.className = `log-entry`;
+  entry.style.padding = "8px 10px";
+  entry.style.borderLeft = "2px solid var(--accent)";
+  entry.style.marginBottom = "4px";
+  entry.style.background = "rgba(0,0,0,0.2)";
+  
+  if(type === 'error') entry.style.borderLeftColor = "var(--red)";
+  if(type === 'status') entry.style.borderLeftColor = "var(--green)";
+
+  entry.innerHTML = `
+    <div style="display:flex; align-items:flex-start; gap:8px;">
+      <span>${icon}</span>
+      <div>
+        <div style="font-size:0.75rem; color:var(--text);">${msg}</div>
+        <div style="font-size:0.6rem; color:var(--muted); margin-top:2px;">${now}</div>
+      </div>
+    </div>`;
+    
+  logContainer.prepend(entry);
+  logCount++;
+  document.getElementById('logCount').textContent = logCount;
+  if (logContainer.children.length > MAX_LOGS) logContainer.lastChild.remove();
+}
+
+function clearLogs() {
+  logContainer.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:0.78rem;padding:20px;">Chưa có sự kiện nào...</div>';
+  logCount = 0;
+  document.getElementById('logCount').textContent = '0';
+}
+
+// ════ WEBSOCKET ════
+function connect() {
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    document.getElementById('wsDot').classList.add('online');
+    document.getElementById('wsLabel').textContent = 'WebSocket: Đã kết nối';
+    addLog('status', 'WebSocket kết nối thành công');
+    setTimeout(() => {
+      if(ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "finger_list" }));
+    }, 500);
+  };
+  
+  ws.onclose = () => {
+    document.getElementById('wsDot').classList.remove('online');
+    document.getElementById('wsLabel').textContent = 'WebSocket: Đã ngắt kết nối';
+    addLog('warn', 'WebSocket mất kết nối — thử lại sau 3s');
+    document.getElementById('mqttBadge').className = 'conn-badge offline';
+    document.getElementById('mqttLabel').textContent = 'MQTT OFFLINE';
+    setTimeout(connect, 3000);
+  };
+  
+  ws.onerror = () => addLog('error', 'Lỗi WebSocket');
+
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      handleMessage(msg);
+    } catch (e) {
+      // Bỏ qua nếu không phải JSON
+    }
+  };
+}
+
+function handleMessage(msg) {
+  switch (msg.type) {
+    case "photo":
+      showImage(msg);
+      break;
+    case "recognizing":
+      setFacePanel("scanning", "🔍", "ĐANG NHẬN DẠNG...", "Đang xử lý ảnh", null);
+      break;
+    case "recognition_result":
+      const conf = msg.confidence || 0;
+      if (!msg.detected) {
+        setFacePanel("idle", "👤", "KHÔNG CÓ KHUÔN MẶT", "Không detect được", 0);
+        addLog("info", "Không phát hiện khuôn mặt");
+      } else if (msg.recognized) {
+        setFacePanel("granted", "✅", "ĐÃ NHẬN DIỆN · MỞ KHÓA", msg.name, conf);
+        addLog("status", `✅ Nhận diện: ${msg.name} (${(conf*100).toFixed(1)}%)`);
+      } else {
+        setFacePanel("denied", "❌", "KHÔNG NHẬN DIỆN ĐƯỢC", "Người lạ / Unknown", conf);
+        addLog("error", `❌ Khuôn mặt lạ`);
+      }
+      break;
+    case "unlock_sent":
+      const camFrame = document.getElementById("camFrame");
+      camFrame.classList.remove("unlocked");
+      void camFrame.offsetWidth;
+      camFrame.classList.add("unlocked");
+      addLog("status", `🔓 Lệnh UNLOCK gửi → ESP32 (${msg.name})`);
+      break;
+    case "face_service_error":
+      setFacePanel("denied", "⚠️", "FACE SERVICE LỖI", msg.error, 0);
+      addLog("error", `Face service: ${msg.error}`);
+      break;
+    case "faces_reloaded":
+      addLog("info", `🔄 Hệ thống đã làm mới dữ liệu khuôn mặt`);
+      break;
+    case "status":
+      const badge = document.getElementById('mqttBadge');
+      const lbl   = document.getElementById('mqttLabel');
+      badge.className = 'conn-badge ' + (msg.connected ? 'online' : 'offline');
+      lbl.textContent = msg.connected ? 'MQTT ONLINE' : 'MQTT OFFLINE';
+      if (msg.clients !== undefined) document.getElementById('wsClients').textContent = msg.clients;
+      addLog("status", msg.connected ? "MQTT broker: Online" : "MQTT broker: Offline");
+      break;
+    case "log":
+      if (msg.event === "photo_sent") addLog("status", "ESP32: Đã gửi ảnh lên MQTT");
+      else if (msg.status === "online") addLog("status", "ESP32: Device Online");
+      else addLog("info", JSON.stringify(msg));
+      break;
+    case "finger_status":
+      handleFingerStatus(msg);
+      break;
+    case "finger_list":
+      renderFingerList(msg.db);
+      break;
+  }
+}
+
+function showImage(msg) {
+  const src = "data:image/jpeg;base64," + msg.data;
+  camImage.src = src;
+  camImage.style.display = 'block';
+  placeholder.style.display = 'none';
+
+  document.getElementById('hudOverlay').classList.add('show');
+  recBadge.classList.add('active');
+
+  const sizeKB = (msg.size / 1024).toFixed(1);
+  const now    = new Date(msg.timestamp).toLocaleTimeString('vi-VN');
+  
+  hudTime.textContent = now;
+  hudSize.textContent = sizeKB + ' KB';
+  document.getElementById('lastSize').textContent = sizeKB + ' KB';
+  document.getElementById('lastTime').textContent = now;
+  
+  frameCount++;
+  document.getElementById('frameCount').textContent = frameCount;
+
+  addThumb(src);
+}
+
+function addThumb(url) {
+  const img = document.createElement('img');
+  img.src = url;
+  img.style.width = '60px'; 
+  img.style.height = '45px'; 
+  img.style.objectFit = 'cover';
+  img.style.borderRadius = '2px'; 
+  img.style.cursor = 'pointer';
+  img.style.border = '1px solid var(--border)';
+  
+  img.onclick = () => {
+    camImage.src = url; 
+    camImage.style.display = "block";
+    placeholder.style.display = "none";
+  };
+
+  if (thumbStrip.children[0]?.tagName !== 'IMG') thumbStrip.innerHTML = '';
+  thumbStrip.prepend(img);
+  thumbs.unshift(url);
+  if (thumbs.length > MAX_THUMBS) {
+    thumbStrip.lastChild?.remove();
+    thumbs.pop();
+  }
+}
+
+// ════ FACE PANEL ════
+function setFacePanel(state, icon, statusText, nameText, confValue) {
+  const avatar = document.getElementById('faceAvatar');
+  const status = document.getElementById('faceStatus');
+  const name   = document.getElementById('faceName');
+  const conf   = document.getElementById('faceConf');
+  const fill   = document.getElementById('confFill');
+
+  avatar.textContent = icon;
+  status.textContent = statusText;
+  name.textContent   = nameText || '—';
+
+  if (state === 'scanning') {
+    avatar.className = 'face-avatar';
+    status.style.color = 'var(--accent)';
+    fill.style.background = 'var(--accent)';
+  } else if (state === 'granted') {
+    avatar.className = 'face-avatar success';
+    status.style.color = 'var(--green)';
+    fill.style.background = 'var(--green)';
+  } else if (state === 'denied') {
+    avatar.className = 'face-avatar fail';
+    status.style.color = 'var(--red)';
+    fill.style.background = 'var(--red)';
+  } else {
+    avatar.className = 'face-avatar';
+    status.style.color = 'var(--muted)';
+    fill.style.background = 'var(--muted)';
+  }
+
+  if (confValue !== null) {
+    const pct = Math.round(confValue * 100);
+    conf.textContent = pct > 0 ? `Độ chính xác: ${pct}%` : "—";
+    fill.style.width = pct + '%';
+  }
+}
+
+// ════ COMMANDS (WebSocket) ════
+function manualUnlock() {
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: "manual_unlock" }));
+    addLog("status", "⚡ Yêu cầu mở thủ công gửi đi");
+  } else {
+    addLog("error", "Lỗi: WebSocket chưa kết nối");
+  }
+}
+
+// ════ FINGERPRINT ════
+function handleFingerStatus(msg) {
+  const ev = msg.event;
+  if (ev === "enroll_waiting") {
+    setFingerStatus("waiting", "🫆", "ĐANG ĐĂNG KÝ", "ESP32 đang lấy vân tay...");
+    addLog("info", "🫆 Đang có yêu cầu đăng ký vân tay mới");
+  } else if (ev === "enroll_step1") {
+    setFingerStatus("waiting", "🫆", "ĐẶT LẠI LẦN 2", "ESP32 đang chờ xác nhận...");
+  } else if (ev === "enroll_ok") {
+    setFingerStatus("success", "✅", "ĐĂNG KÝ THÀNH CÔNG", `${msg.name} · ID #${msg.id}`);
+    addLog("status", `✅ Đăng ký vân tay thành công: ${msg.name} (ID=${msg.id})`);
+    if (msg.db) renderFingerList(msg.db);
+    setTimeout(() => setFingerStatus("", "🫆", "ĐANG CHỜ", "Hệ thống sẵn sàng xác thực"), 3000);
+  } else if (ev === "enroll_fail") {
+    setFingerStatus("fail", "❌", "ĐĂNG KÝ THẤT BẠI", msg.reason || "Lỗi ESP32");
+    addLog("error", `❌ ESP32 báo lỗi đăng ký: ${msg.reason || ""}`);
+    setTimeout(() => setFingerStatus("", "🫆", "ĐANG CHỜ", "Hệ thống sẵn sàng xác thực"), 3000);
+  } else if (ev === "verify_ok") {
+    const displayName = msg.name || `ID #${msg.id}`;
+    setFingerStatus("verify-ok", "✅", `ĐÚNG VÂN TAY`, displayName);
+    addLog("status", `✅ Xác thực OK: ${displayName}`);
+    setTimeout(() => setFingerStatus("", "🫆", "ĐANG CHỜ", "Hệ thống sẵn sàng xác thực"), 4000);
+  } else if (ev === "verify_fail") {
+    setFingerStatus("verify-fail", "❌", "SAI VÂN TAY", "Không khớp dữ liệu");
+    addLog("error", "❌ Xác thực vân tay thất bại");
+    setTimeout(() => setFingerStatus("", "🫆", "ĐANG CHỜ", "Hệ thống sẵn sàng xác thực"), 3000);
+  } else if (ev === "delete_ok") {
+    setFingerStatus("success", "🗑️", "ĐÃ XÓA VÂN TAY", `ID #${msg.id}`);
+    if (msg.db) renderFingerList(msg.db);
+    setTimeout(() => setFingerStatus("", "🫆", "ĐANG CHỜ", "Hệ thống sẵn sàng xác thực"), 2000);
+  }
+}
+
+function setFingerStatus(state, icon, title, sub) {
+  const box = document.getElementById("fingerStatusBox");
+  box.className = "finger-status-box" + (state ? " " + state : "");
+  document.getElementById("fingerIcon").textContent = icon;
+  document.getElementById("fingerMsgTitle").textContent = title;
+  document.getElementById("fingerMsgSub").textContent = sub;
+}
+
+// Hàm render giờ đã bỏ nút Xóa
+function renderFingerList(db) {
+  const list = document.getElementById("fingerList");
+  const count = Object.keys(db).length;
+  document.getElementById("fingerCount").textContent = count;
+  if (count === 0) { 
+    list.innerHTML = `<div style="color:var(--muted);font-size:0.75rem;text-align:center;padding:12px;">Chưa có vân tay nào</div>`; 
+    return; 
+  }
+  list.innerHTML = Object.entries(db).map(([id, info]) => `
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border:1px solid var(--border); border-radius:4px; font-size:0.75rem; background:rgba(0,0,0,0.2); margin-bottom: 6px;">
+      <div><span style="color:var(--accent); margin-right:8px; font-weight:bold;">#${id}</span> ${info.name}</div>
+      <span style="color:var(--green);">✓ Active</span>
+    </div>
+  `).join("");
+}
+
+// Bắt đầu kết nối tự động
+connect();
+</script>
+</body>
+</html>

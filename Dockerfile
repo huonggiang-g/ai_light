@@ -1,16 +1,7 @@
-FROM python:3.9-slim
-
-# Sử dụng 'libgl1' thay vì 'libgl1-mesa-glx'
-RUN apt-get update && apt-get install -y \
-    libgl1 \
-    libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
-
+FROM node:18
 WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
+COPY package*.json ./
+RUN npm install
 COPY . .
-
-CMD ["uvicorn", "app_ai:app", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 3000
+CMD ["node", "server.js"]
